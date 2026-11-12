@@ -9,6 +9,7 @@ from .sources.network import NetworkSource
 from .sources.readsb import ReadsbSource
 from .sources.gps import GpsSource
 from .photos import PhotoCache
+from .cities import CityImages
 from . import display as D
 from .touch import Touch
 from .routes import RouteCache
@@ -36,6 +37,7 @@ class App:
         self.local = ReadsbSource(cfg)
         self.gps = GpsSource(cfg)
         self.photos = PhotoCache(cfg)
+        self.cities = CityImages(cfg)
         self.offdb = OfflineDB(cfg)
         self.routes = RouteCache(cfg); self.routes.db = self.offdb
         self.logbook = Logbook(cfg)

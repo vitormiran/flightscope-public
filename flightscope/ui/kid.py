@@ -204,8 +204,9 @@ def draw_badge(s, kind, c, r):
 def pulse(period=1.2, lo=0.0, hi=1.0):
     return lo + (hi - lo) * (0.5 + 0.5 * math.sin(time.time() * 2 * math.pi / period))
 
-def route_line(s, o, d, size, color, pos, max_w):
-    """'Origin  ->  Dest' with a drawn arrow, fitted to max_w. Returns the rect used."""
+def route_line(s, o, d, size, color, pos, max_w, hits=None):
+    """'Origin  ->  Dest' with a drawn arrow, fitted to max_w. Returns the rect used. hits: a dict that gets the
+    rects of the two names under 'o' and 'd', for tapping."""
     f = T.font(size, weight="extrabold"); arrow_w = int(size * 1.6)
     while size > 13 and f.size(o)[0] + f.size(d)[0] + arrow_w + 20 > max_w:      # shrink first, cut last
         size -= 1; f = T.font(size, weight="extrabold"); arrow_w = int(size * 1.6)
@@ -219,23 +220,27 @@ def route_line(s, o, d, size, color, pos, max_w):
         elif ow > dw: o = fit(o, budget - dw - 6) + "…"
         else: d = fit(d, budget - ow - 6) + "…"
     x, y = pos; h = f.get_height()
-    s.blit(f.render(o, True, color), (x, y)); x += f.size(o)[0] + 10
+    s.blit(f.render(o, True, color), (x, y))
+    if hits is not None: hits["o"] = pygame.Rect(x, y, f.size(o)[0], h)
+    x += f.size(o)[0] + 10
     cy = y + h // 2 + 1; ax = x + arrow_w - 4
     pygame.draw.line(s, color, (x, cy), (ax, cy), max(3, size // 7))
     pygame.draw.polygon(s, color, [(ax + 2, cy), (ax - size // 3, cy - size // 3), (ax - size // 3, cy + size // 3)])
     x += arrow_w + 10
     s.blit(f.render(d, True, color), (x, y))
+    if hits is not None: hits["d"] = pygame.Rect(x, y, f.size(d)[0], h)
     return pygame.Rect(pos[0], y, x + f.size(d)[0] - pos[0], h)
 
 
-def journey_line(s, o, d, frac, size, color, pos, max_w):
+def journey_line(s, o, d, frac, size, color, pos, max_w, hits=None):
     """'Origin  ●━━━━✈┄┄┄○  Dest': how far along the trip the plane is. Falls back to route_line when tight."""
     f = T.font(size, weight="extrabold"); ow, dw = f.size(o)[0], f.size(d)[0]
     bar = max_w - ow - dw - 36
-    if bar < 150: return route_line(s, o, d, size, color, pos, max_w)
+    if bar < 150: return route_line(s, o, d, size, color, pos, max_w, hits)
     bar = min(bar, 420)
     x, y = pos; h = f.get_height(); cy = y + h // 2 + 1
     s.blit(f.render(o, True, color), (x, y)); x0 = x + ow + 18; x1 = x0 + bar
+    if hits is not None: hits["o"] = pygame.Rect(x, y, ow, h); hits["d"] = pygame.Rect(x1 + 18, y, dw, h)
     px = x0 + (x1 - x0) * max(0.0, min(1.0, frac))
     for xx in range(int(px) + 10, int(x1) - 6, 11): pygame.draw.circle(s, (210, 190, 170), (xx, cy), 2)       # still to go
     pygame.draw.line(s, color, (x0, cy), (px, cy), 5)                                                       # done

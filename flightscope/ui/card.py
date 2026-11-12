@@ -5,6 +5,7 @@ from . import theme as T
 from .widgets import text, fit_text, vscale
 from .. import names
 from .kid import plane_art, journey_line, Pill, tile, route_line, PAPER, INK, INK_SOFT, CHIP, ORANGE, GREEN
+from .city import CityScreen
 from .mapview import halo_text, ROUTE
 
 W, H = 800, 480
@@ -13,7 +14,7 @@ class CardScreen:
     def __init__(self, app, hex: str):
         self.app = app; self.hex = hex
         self.back = Pill((14, 14, 130, 50), "Map", size=19, icon="back")
-        self._down = None
+        self._down = None; self._hits = {}; self._places = {}
 
     def handle(self, e):
         if e.type == pygame.KEYDOWN and e.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE): return self.app.pop()
@@ -21,7 +22,12 @@ class CardScreen:
             self._down = e.pos; self.back.pressed = self.back.hit(e.pos)
         elif e.type == pygame.MOUSEBUTTONUP:
             self.back.pressed = False
-            if self._down: self.app.pop()          # anywhere: back to the map
+            if self._down:
+                for k, r in self._hits.items():     # a city name: its picture
+                    if r.inflate(24, 20).collidepoint(self._down) and r.inflate(24, 20).collidepoint(e.pos) and k in self._places:
+                        name, lat, lon = self._places[k]; self._down = None
+                        return self.app.push(CityScreen(self.app, name, lat, lon))
+                self.app.pop()                      # anywhere else: back to the map
             self._down = None
 
     def update(self, dt):
@@ -56,10 +62,15 @@ class CardScreen:
         kind = names.plane_type(a.type, a.desc) if a.type else names.kind(a)
         text(s, fit_text(f"{kind} ({a.reg or a.hex.upper()})", 17, 640, weight="bold"), 17, INK_SOFT, (20, y), "topleft", weight="bold")
         y += 24
+        self._hits = {}; self._places = {}
         if rt and (rt.origin or rt.dest):
             frac = self._progress(a, rt)
-            if frac is None: route_line(s, names.place(rt.origin), names.place(rt.dest), 24, ROUTE, (20, y), 760)
-            else: journey_line(s, names.place(rt.origin), names.place(rt.dest), frac, 24, ROUTE, (20, y), 760)
+            if frac is None: route_line(s, names.place(rt.origin), names.place(rt.dest), 24, ROUTE, (20, y), 760, self._hits)
+            else: journey_line(s, names.place(rt.origin), names.place(rt.dest), frac, 24, ROUTE, (20, y), 760, self._hits)
+            for k, ap in (("o", rt.origin), ("d", rt.dest)):
+                if ap and k in self._hits and names.place(ap) != "?":          # tappable: underlined, and only for a real place name
+                    self._places[k] = (names.place(ap), ap.get("lat"), ap.get("lon"))
+                    r = self._hits[k]; pygame.draw.line(s, ROUTE, (r.x, r.bottom - 2), (r.right, r.bottom - 2), 2)
         # fact tiles
         tiles = []
         if a.on_ground: tiles.append(("on the ground", "RIGHT NOW", INK, None))

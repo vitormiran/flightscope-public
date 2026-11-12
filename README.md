@@ -33,6 +33,9 @@ from evdev, so there's no desktop, no X, no compositor. Boots to the map in ~10 
   downloaded weekly while online, so planes heard on the antenna still get a registration, type and
   route with no internet. Setup > Status > "Antenna only" simulates being offline (the app stops
   using the internet; Wi-Fi and SSH stay up) for testing the antenna.
+- **City pictures** — on the full-screen plane card the origin and destination names are underlined;
+  tap one to see a picture of that city (Wikipedia's lead image, credited on screen). It is fetched
+  over Wi‑Fi when you tap, shown from memory and never saved to disk. No picture, or no Wi‑Fi: just the name.
 - **Logbook** — one entry per airframe, "seen again" after 2 h or a new flight, totals by
   airline and by type, two‑step delete.
 - **Setup screen** — hold Home for 3 s: status, Wi‑Fi (scan/join with an on‑screen keyboard),
