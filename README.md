@@ -24,7 +24,8 @@ from evdev, so there's no desktop, no X, no compositor. Boots to the map in ~10 
 
 - **Map** — offline vector map clipped from Natural Earth + OurAirports, continuous pinch zoom,
   planes coloured by altitude with drawn icons (helicopters too), dotted route lines to origin
-  and destination, FOLLOW mode, star badges for logged planes.
+  and destination, FOLLOW mode, star badges for logged planes, and small round badges for military
+  (white star on olive) and "interesting" (yellow `!`) aircraft, taken from the feed's tar1090-db `dbFlags`.
 - **Plane data** — adsb.lol v2 point query over Wi‑Fi (5 s polls, polite back‑off), routes from
   adsbdb and adsb.im, photos from Planespotters. The antenna (readsb) is a fallback only: it's
   stopped while the feed is healthy to save ~1 W, and started as soon as the feed goes quiet.
