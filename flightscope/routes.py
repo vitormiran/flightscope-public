@@ -27,7 +27,7 @@ class Route:
 def _ap(d):
     if not d: return None
     return {"iata": d.get("iata_code") or "", "icao": d.get("icao_code") or "", "city": d.get("municipality") or "",
-            "name": d.get("name") or "", "lat": d.get("latitude"), "lon": d.get("longitude")}
+            "name": d.get("name") or "", "lat": d.get("latitude"), "lon": d.get("longitude"), "country": d.get("country_iso_name") or ""}
 
 class RouteCache:
     def __init__(self, cfg):
@@ -56,10 +56,22 @@ class RouteCache:
                     d = json.load(open(p))
                     r = Route(d.get("origin"), d.get("dest"), d.get("airline")) if d.get("origin") else None
                     stale = r is None and time.time() - float(d.get("at") or p.stat().st_mtime) > RETRY_NONE_S
-                    if not stale: self._mem[cs] = r; return r
+                    if not stale:
+                        self._mem[cs] = r
+                        if r and pos is not None and self._lacks_country(d) and time.time() - self._failed.get(cs, 0) >= RETRY_FAIL_S:
+                            self._enqueue(cs, pos, urgent)             # cached before flags existed: show it now, fetch the country behind it
+                        return r
                     if pos is None: return None
                 except ValueError: pass                      # stale 'no route' or a torn file: ask again
         if pos is None or time.time() - self._failed.get(cs, 0) < RETRY_FAIL_S: return None
+        self._enqueue(cs, pos, urgent)
+        return None
+
+    @staticmethod
+    def _lacks_country(d) -> bool:
+        return any(isinstance(ap, dict) and "country" not in ap for ap in (d.get("origin"), d.get("dest")))
+
+    def _enqueue(self, cs, pos, urgent):
         with self._lock:
             if cs not in self._pending:
                 self._pending.add(cs)
@@ -67,7 +79,6 @@ class RouteCache:
             elif urgent and self._q and self._q[0][0] != cs:
                 item = next((x for x in self._q if x[0] == cs), None)
                 if item: self._q.remove(item); self._q.appendleft(item)
-        return None
 
     def _fetch(self, url, body=None):
         h = {"User-Agent": self.cfg.user_agent, "Accept": "application/json"}
@@ -94,7 +105,7 @@ class RouteCache:
         legs = list(zip(aps, aps[1:]))                  # 'A-B-C' is two legs: take the one the plane is on
         o, dst = min(legs, key=lambda l: _seg_off(pos, (l[0]["lat"], l[0]["lon"]), (l[1]["lat"], l[1]["lon"])))
         ap = lambda a: {"iata": a.get("iata") or "", "icao": a.get("icao") or "", "city": a.get("location") or "",
-                        "name": a.get("name") or "", "lat": a.get("lat"), "lon": a.get("lon")}
+                        "name": a.get("name") or "", "lat": a.get("lat"), "lon": a.get("lon"), "country": a.get("countryiso2") or ""}
         return {"origin": ap(o), "dest": ap(dst), "airline": None, "src": "adsb.im"}
 
     def _worker(self):
@@ -105,6 +116,8 @@ class RouteCache:
             try:
                 out = self._adsbdb(cs) or self._routeset(cs, pos) or (self.db and self.db.route(cs, pos)) or {"origin": None, "dest": None, "airline": None}
                 out["at"] = int(time.time())
+                for k in ("origin", "dest"):
+                    if isinstance(out.get(k), dict): out[k].setdefault("country", "")      # always present once asked, so a cached route isn't asked about again
                 json.dump(out, open(self.dir / f"{cs}.json", "w"))
                 self._failed.pop(cs, None); self._mem.pop(cs, None)
             except Exception as e:

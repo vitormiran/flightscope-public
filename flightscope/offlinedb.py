@@ -16,7 +16,7 @@ class OfflineDB:
     def __init__(self, cfg):
         self.cfg = cfg
         self.path = Path(cfg.cache_dir) / "offline.db"
-        self._con = None; self._mtime = 0.0
+        self._con = None; self._mtime = 0.0; self._has_country = None
         self._lock = threading.Lock()
         self._planes: dict[str, tuple | None] = {}
         self._proc = None; self._tried = time.time() - RETRY_S + 120      # first try 2 min after boot, not during it
@@ -28,6 +28,7 @@ class OfflineDB:
             if self._con: self._con.close()
             self._con = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, check_same_thread=False)
             self._mtime = m; self._planes.clear()
+            self._has_country = any(c[1] == "country" for c in self._con.execute("PRAGMA table_info(airports)"))      # built before flags: rebuild
         return self._con
 
     def plane(self, hex: str):
@@ -61,8 +62,8 @@ class OfflineDB:
                 if not row: return None
                 aps = []
                 for code in row[0].split("-"):
-                    a = db.execute("SELECT icao, iata, name, city, lat, lon FROM airports WHERE icao = ?", (code,)).fetchone()
-                    if a: aps.append(dict(zip(("icao", "iata", "name", "city", "lat", "lon"), a)))
+                    a = db.execute(f"SELECT icao, iata, name, city, lat, lon{', country' if self._has_country else ''} FROM airports WHERE icao = ?", (code,)).fetchone()
+                    if a: aps.append(dict(zip(("icao", "iata", "name", "city", "lat", "lon", "country"), a)))
             except sqlite3.Error: return None
         if len(aps) < 2: return None
         legs = list(zip(aps, aps[1:]))
@@ -77,8 +78,9 @@ class OfflineDB:
             print(f"offline db: build {'done' if self._proc.returncode == 0 else f'failed ({self._proc.returncode})'}", flush=True)
             self._proc = None
         if now - self._tried < RETRY_S or offline.on: return
+        with self._lock: self._db()
         try:
-            if now - self.path.stat().st_mtime < MAX_AGE_S: return
+            if now - self.path.stat().st_mtime < MAX_AGE_S and self._has_country is not False: return
         except OSError: pass
         self._tried = now
         print("offline db: downloading aircraft and routes", flush=True)
@@ -97,14 +99,14 @@ def build(path: Path, ua: str):
     con.executescript("""PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;
         CREATE TABLE aircraft (hex TEXT PRIMARY KEY, reg TEXT, type TEXT, desc TEXT) WITHOUT ROWID;
         CREATE TABLE routes (cs TEXT PRIMARY KEY, aps TEXT) WITHOUT ROWID;
-        CREATE TABLE airports (icao TEXT PRIMARY KEY, iata TEXT, name TEXT, city TEXT, lat REAL, lon REAL) WITHOUT ROWID;""")
+        CREATE TABLE airports (icao TEXT PRIMARY KEY, iata TEXT, name TEXT, city TEXT, lat REAL, lon REAL, country TEXT) WITHOUT ROWID;""")
     rows = csv.reader(_get(AIRCRAFT, ua), delimiter=";")
     con.executemany("INSERT OR IGNORE INTO aircraft VALUES (?, ?, ?, ?)",
                     ((r[0].upper(), r[1] or None, r[2] or None, r[4] or None) for r in rows if len(r) > 4 and (r[1] or r[2])))
     con.executemany("INSERT OR IGNORE INTO routes VALUES (?, ?)",
                     ((r["Callsign"], r["AirportCodes"]) for r in csv.DictReader(_get(ROUTES, ua)) if r.get("AirportCodes")))
-    con.executemany("INSERT OR IGNORE INTO airports VALUES (?, ?, ?, ?, ?, ?)",
-                    ((r["ICAO"], r["IATA"] or "", r["Name"], r["Location"], float(r["Latitude"]), float(r["Longitude"]))
+    con.executemany("INSERT OR IGNORE INTO airports VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    ((r["ICAO"], r["IATA"] or "", r["Name"], r["Location"], float(r["Latitude"]), float(r["Longitude"]), r.get("CountryISO2") or "")
                      for r in csv.DictReader(_get(AIRPORTS, ua)) if r.get("ICAO") and r.get("Latitude")))
     n = [con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("aircraft", "routes", "airports")]
     con.commit(); con.close()

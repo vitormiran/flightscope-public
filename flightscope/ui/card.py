@@ -65,12 +65,13 @@ class CardScreen:
         self._hits = {}; self._places = {}
         if rt and (rt.origin or rt.dest):
             frac = self._progress(a, rt)
-            if frac is None: route_line(s, names.place(rt.origin), names.place(rt.dest), 24, ROUTE, (20, y), 760, self._hits)
-            else: journey_line(s, names.place(rt.origin), names.place(rt.dest), frac, 24, ROUTE, (20, y), 760, self._hits)
+            fl = ((rt.origin or {}).get("country"), (rt.dest or {}).get("country"))
+            if frac is None: route_line(s, names.place(rt.origin), names.place(rt.dest), 24, ROUTE, (20, y), 760, self._hits, fl)
+            else: journey_line(s, names.place(rt.origin), names.place(rt.dest), frac, 24, ROUTE, (20, y), 760, self._hits, fl)
             for k, ap in (("o", rt.origin), ("d", rt.dest)):
                 if ap and k in self._hits and names.place(ap) != "?":          # tappable: underlined, and only for a real place name
                     self._places[k] = (names.place(ap), ap.get("lat"), ap.get("lon"))
-                    r = self._hits[k]; pygame.draw.line(s, ROUTE, (r.x, r.bottom - 2), (r.right, r.bottom - 2), 2)
+                    r = self._hits[k + "_t"]; pygame.draw.line(s, ROUTE, (r.x, r.bottom - 2), (r.right, r.bottom - 2), 2)
         # fact tiles
         tiles = []
         if a.on_ground: tiles.append(("on the ground", "RIGHT NOW", INK, None))

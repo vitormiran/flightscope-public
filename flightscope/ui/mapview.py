@@ -702,7 +702,7 @@ class MapScreen:
         kind = names.plane_type(a.type, a.desc) if a.type else names.kind(a)
         text(s, fit_text(f"{kind} ({ident})", 16, maxw, weight="bold"), 16, INK_SOFT, (x0, r.y + 44), "topleft", weight="bold")
         has_route = bool(rt and (rt.origin or rt.dest))
-        if has_route: route_line(s, names.place(rt.origin), names.place(rt.dest), 21, ROUTE, (x0, r.y + 66), maxw)
+        if has_route: route_line(s, names.place(rt.origin), names.place(rt.dest), 21, ROUTE, (x0, r.y + 66), maxw, flags=((rt.origin or {}).get("country"), (rt.dest or {}).get("country")))
         chips = []
         if a.on_ground: chips.append(("on the ground", "level"))
         else:
