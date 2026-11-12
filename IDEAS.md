@@ -7,7 +7,6 @@ Effort guide: **S** under a day, **M** a few days, **L** a week or more. Tick th
 
 ## Follow-ups on the badges
 - [ ] Show the badges on the plane card and in the logbook (S)
-- [ ] Store flags in the offline SQLite DB so antenna-only planes get badges too (S-M). The tar1090-db `aircraft.csv` column 3 should hold the flags (`offlinedb.py` currently reads columns 0, 1, 2, 4). This needs a schema change and a rebuild of existing `offline.db` files.
 - [ ] Check that "interesting" (value 2) really shows up in live adsb.fi and adsb.lol data. The one sample I pulled only had 1 and 8.
 
 ## Spotting more, using data the app already receives
@@ -51,11 +50,10 @@ Each adds an outside service, so it adds privacy and rate-limit costs.
 - [ ] Fix the stale README line and `config.py` comment: the app asks adsb.fi first and adsb.lol second, not adsb.lol only (S)
 - [ ] Add `numpy` to `requirements.txt` (`world.py` imports it) (S)
 - [ ] Add `.venv/` to `.gitignore` (S)
-- [ ] The weekly offline-DB download uses `urllib.request.urlopen` directly, so it ignores the "Antenna only" test switch (S)
 - [ ] Guard the `sudo -n date -s` calls in `app.py` and `sources/gps.py` so they only run on Linux, to protect a dev Mac with passwordless sudo (S)
 
 ## Security hardening (from the review)
-- [ ] Replace `sudo: ALL=(ALL) NOPASSWD:ALL` in `provision/user-data` with a sudoers file limited to the exact commands the app uses (`nmcli`, `systemctl reboot/poweroff/restart/start/stop readsb`, `date -s`, the I2C bind and the backlight write) (S-M)
+- [ ] Replace `sudo: ALL=(ALL) NOPASSWD:ALL` in `provision/user-data` with a sudoers file limited to the exact commands the app uses (`nmcli`, `systemctl reboot/poweroff/restart`, `date -s`, the I2C bind and the backlight write) (S-M)
 - [ ] Replace the two `sudo sh -c` calls in `touch.py` and `power.py` with direct file writes plus narrow sudoers rules (S-M)
 - [ ] Pass the Wi-Fi password to `nmcli` without exposing it in the process list (S)
 - [ ] Remove `FLIGHTSCOPE_DEBUG=1` from `provision/flightscope.service` for production (S)

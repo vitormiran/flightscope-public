@@ -7,7 +7,7 @@ from .widgets import text, fit_text
 from .kid import Pill, draw_icon, PAPER, INK, INK_SOFT, CHIP, OUTLINE, ORANGE, GREEN, RED, SHADOW
 from .keyboard import KeyboardScreen
 from .. import config as C
-from .. import system as S, offline
+from .. import system as S
 
 W, H = 800, 480
 TOP, ROW = 76, 56
@@ -129,15 +129,10 @@ class AdminScreen:
         st = self.status; app = self.app; b = app.battery; net = app.net
         feed = "OK" if net.ok else (net.error or "no data yet")
         age = f"{time.time() - net.stamp:.0f} s ago" if net.stamp else ""
-        if offline.on:
-            heard = app.fleet.positioned()
-            feed = f"Antenna only  ·  {len(heard)} plane{'' if len(heard) == 1 else 's'}" + (f", out to {max(a.dst for a in heard):.0f} NM" if heard else "")
-        flip = [("Wi-Fi feed" if offline.on else "Antenna only", lambda: app.antenna_only(not offline.on), ORANGE if offline.on else PAPER, PAPER if offline.on else INK, 150)] if app.sleeper else []
         rows = [("Name", st.get("host", "…"), None),
                 ("Wi-Fi", (st.get("ssid") or "not connected") + (f"  ·  {st.get('signal', 0)}%" if st.get("ssid") else ""), None),
                 ("IP address", st.get("ip") or "—", None),
-                ("Plane feed", f"{feed}" + (f"  ·  {age}" if net.ok else ""), ORANGE if offline.on else GREEN if net.ok else RED, flip),
-                ("Antenna", ("not fitted" if not app.local.present else f"readsb {st.get('readsb', '?')}" + ("  ·  hearing planes" if app.local.ok else "")), None),
+                ("Plane feed", f"{feed}" + (f"  ·  {age}" if net.ok else ""), GREEN if net.ok else RED),
                 ("Planes on map", str(len(app.fleet.positioned())), None),
                 ("GPS", app.gps.status(), GREEN if app.gps.fix else None),
                 ("GPS signal", app.gps.signal_text(), None),

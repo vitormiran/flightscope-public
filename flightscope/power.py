@@ -51,31 +51,6 @@ class Backlight:
         elif self.cfg.dim_after_s > 0 and self.cfg.dim_after_s < idle <= off_after and self.state == "on":
             self.state = "dim"; self.set(self.cfg.dim_level); print(f"power: backlight dim after {idle:.0f}s idle", flush=True)
 
-class DongleSleeper:
-    """readsb keeps the SDR sampling flat out (~1.1 W). Stop it while Wi-Fi carries the map; start it
-    the moment the feed goes stale. Hysteresis so a single bad poll doesn't bounce the service."""
-    def __init__(self, app):
-        self.app = app; self.want_running = True; self.since = time.time(); self._last_cmd = 0.0; self.running = None
-        self._check()
-
-    def _check(self):
-        try: self.running = subprocess.run(["systemctl", "is-active", "readsb"], capture_output=True, text=True, timeout=3).stdout.strip() not in ("inactive", "failed")
-        except Exception: self.running = None
-
-    def _cmd(self, verb):
-        try: subprocess.Popen(["sudo", "-n", "systemctl", verb, "readsb"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except OSError: pass
-        self._last_cmd = time.time(); print(f"power: readsb {verb} ({'wifi ok' if verb == 'stop' else 'feed down'})", flush=True)
-
-    def tick(self):
-        now = time.time(); net = self.app.net
-        want = (not net.ok) or net.fails >= 2            # start the antenna early: two failed polls in a row, don't wait for staleness
-        if want != self.want_running: self.want_running, self.since = want, now
-        held = now - self.since
-        if now - self._last_cmd < 10: return
-        if self.want_running and held > 5 and not self.running: self._cmd("start"); self.running = True
-        elif not self.want_running and held > 60 and self.running is not False: self._cmd("stop"); self.running = False
-
 class Battery:
     """The UPS HAT (D)'s INA219 sits on the battery rail. Current comes straight from the shunt voltage and the
     real shunt value, so it doesn't depend on the calibration register. present = the chip answers;

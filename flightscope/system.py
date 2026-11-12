@@ -53,7 +53,7 @@ def service_state(name: str) -> str:
 def status_snapshot() -> dict:
     ssid, sig = wifi_status()
     return {"host": hostname(), "ip": ip_addr(), "ssid": ssid, "signal": sig, "temp": cpu_temp(), "uptime": uptime_s(),
-            "readsb": service_state("readsb"), "gpsd": service_state("gpsd")}
+            "gpsd": service_state("gpsd")}
 
 # ---------- wi-fi ----------
 def wifi_scan(rescan=True) -> list[dict]:

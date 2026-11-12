@@ -4,7 +4,6 @@ only the last few photos stay decoded in memory."""
 from __future__ import annotations
 import io, json, queue, threading, time, urllib.request
 from pathlib import Path
-from . import offline
 import pygame
 
 API = "https://api.planespotters.net/pub/photos/hex/{hex}"
@@ -63,7 +62,7 @@ class PhotoCache:
 
     def _fetch(self, url: str, accept: str) -> bytes:
         req = urllib.request.Request(url, headers={"User-Agent": self.cfg.user_agent, "Accept": accept})
-        with offline.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=10) as r:
             return r.read()
 
     def _worker(self):

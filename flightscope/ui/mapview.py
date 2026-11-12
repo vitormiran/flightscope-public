@@ -664,7 +664,6 @@ class MapScreen:
         """Where the planes are coming from. Quiet when all is well, loud when it isn't."""
         mode = self.app.mode
         if mode == "wifi": label, icon, fill, col = "Wi-Fi", "wifi", PAPER, GREEN
-        elif mode == "antenna": label, icon, fill, col = "Antenna", "antenna", ORANGE, PAPER
         else: label, icon, fill, col = "No signal", "wifi", RED, PAPER        # the banner does the friendly bit
         f = T.font(15, weight="extrabold"); w = f.size(label)[0] + 52
         r = pygame.Rect(92, 26, w, 40)
@@ -717,7 +716,6 @@ class MapScreen:
             if eta:
                 short = eta.replace("lands in ", "").replace("landing now!", "landing!")
                 chips.append((eta if row_w(17, chips + [(eta, "clock")]) <= maxw else short, "clock"))
-        if "local" in a.sources: chips.append(("our antenna", "antenna"))
         size = 17
         while size > 13 and row_w(size, chips) > maxw: size -= 1
         x, y = x0, r.y + 104 + (17 - size) // 2

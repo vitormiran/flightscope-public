@@ -176,11 +176,6 @@ def draw_icon(s, kind, c, col=INK_SOFT):
         for rr in (4, 8, 12):
             pygame.draw.arc(s, col, pygame.Rect(x - rr, y - rr + 4, 2 * rr, 2 * rr), math.radians(45), math.radians(135), 2)
         pygame.draw.circle(s, col, (x, y + 5), 2)
-    elif kind == "antenna":
-        pygame.draw.line(s, col, (x, y - 9), (x, y + 8), 2)
-        pygame.draw.line(s, col, (x - 6, y + 8), (x + 6, y + 8), 2)
-        for rr in (5, 9):
-            pygame.draw.arc(s, col, pygame.Rect(x - rr, y - 9 - rr, 2 * rr, 2 * rr), math.radians(200), math.radians(340), 2)
     elif kind == "eye":
         pygame.draw.ellipse(s, col, (x - 10, y - 6, 20, 12), 2); pygame.draw.circle(s, col, (x, y), 3)
 

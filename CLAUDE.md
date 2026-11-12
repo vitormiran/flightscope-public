@@ -20,7 +20,7 @@ python -m flightscope --write-config            # writes a full example config a
 - Press `q` in the window to quit.
 - Config is JSON at `~/.config/flightscope/config.json` (override path with `FLIGHTSCOPE_CONFIG`). There is no `.env`. `Config` in `flightscope/config.py` holds the defaults, and only keys matching a `Config` field are applied. `photo_contact` is empty by default, which disables Planespotters photo lookups.
 - Device deploy: `tools/deploy.sh [pi@flightscope.local]` rsyncs `flightscope/` and restarts the systemd unit. It also handles the read-only overlay rootfs.
-- Rebuild the offline map: `python3 tools/build_map.py <lat> <lon> --radius-nm 220` writes `flightscope/data/map.json`. Raw Natural Earth and OurAirports inputs go in `data/`, which is gitignored. `tools/build_world.py` builds `data/world.npz` and `world_labels.json`.
+- Rebuild the bundled map: `python3 tools/build_map.py <lat> <lon> --radius-nm 220` writes `flightscope/data/map.json`. Raw Natural Earth and OurAirports inputs go in `data/`, which is gitignored. `tools/build_world.py` builds `data/world.npz` and `world_labels.json`.
 - Case: `case/build.sh` (needs `case/.venv` with cadquery 2.8.0 via uv, plus ImageMagick `convert`; about 4 min). It aborts if `check.py` reports clashes. `--holes` adds a hole report.
 
 ## Architecture
@@ -28,10 +28,9 @@ python -m flightscope --write-config            # writes a full example config a
 `flightscope/app.py` `App` owns everything and runs the main loop. Each frame: pump events to the top screen of a **screen stack** (`push`/`pop`/`replace`; screens in `ui/` implement `handle`, `update(dt)`, `draw`), ingest data, tick power, update, draw, flip.
 
 Data flow:
-- **Sources** (`sources/`): `NetworkSource` polls adsb.fi then adsb.lol in a thread (a 429 parks that provider). `ReadsbSource` reads the local `/run/readsb/aircraft.json`. `GpsSource` reads gpsd and serial. The antenna is a **fallback only**: `App._ingest` reads it only when the network feed isn't fresh, and `power.DongleSleeper` stops readsb while the feed is healthy.
-- `model.Fleet` merges rows into aircraft keyed by hex. `App.mode` is `wifi`, `antenna` or `none`.
-- **Enrichment**: `RouteCache` (adsbdb, then adsb.im routeset, then `OfflineDB`) and `PhotoCache` (Planespotters) fetch in worker threads and cache on disk under `cfg.cache_dir`. `get()` is called every frame and returns None until data arrives. `OfflineDB` builds a SQLite file weekly in a niced subprocess (`python -m flightscope.offlinedb`) for use with no internet.
-- All HTTP goes through `offline.urlopen`, except the offlinedb download, which uses `urllib.request.urlopen` directly. This is how the "Antenna only" setup toggle simulates being offline.
+- **Sources** (`sources/`): `NetworkSource` polls adsb.fi then adsb.lol in a thread (a 429 parks that provider). `GpsSource` reads gpsd and serial. The device needs Wi-Fi: there is no local ADS-B receiver and no offline data.
+- `model.Fleet` merges rows into aircraft keyed by hex. `App.mode` is `wifi` (feed fresh) or `none`.
+- **Enrichment**: `RouteCache` (adsbdb, then adsb.im routeset) and `PhotoCache` (Planespotters) fetch in worker threads and cache on disk under `cfg.cache_dir`. `get()` is called every frame and returns None until data arrives.
 - `world.World` loads `data/world.npz` (quantised polygons) in a background thread and draws with numpy. `ui/mapview.py` is the largest file, with the map, zoom and follow logic.
 
 Device-specific constraints that shape the code:
