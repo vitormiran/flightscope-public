@@ -6,13 +6,16 @@ import pygame
 from . import config as C, safefile
 from .model import Fleet
 from .sources.network import NetworkSource
+from .sources.readsb import ReadsbSource
 from .sources.gps import GpsSource
 from .photos import PhotoCache
 from . import display as D
 from .touch import Touch
 from .routes import RouteCache
+from . import offline
+from .offlinedb import OfflineDB
 from .logbook import Logbook
-from .power import Backlight, Battery
+from .power import Backlight, DongleSleeper, Battery
 from .ui.splash import SplashScreen
 from .ui.charging import ChargingScreen
 from .ui.mapview import MapScreen
@@ -30,11 +33,14 @@ class App:
         self.clock = pygame.time.Clock()
         self.fleet = Fleet(cfg.home_lat, cfg.home_lon)
         self.net = NetworkSource(cfg); self.net.start()
+        self.local = ReadsbSource(cfg)
         self.gps = GpsSource(cfg)
         self.photos = PhotoCache(cfg)
-        self.routes = RouteCache(cfg)
+        self.offdb = OfflineDB(cfg)
+        self.routes = RouteCache(cfg); self.routes.db = self.offdb
         self.logbook = Logbook(cfg)
         self.backlight = Backlight(cfg) if not cfg.windowed else None
+        self.sleeper = DongleSleeper(self) if self.local.present or not cfg.windowed else None
         self.battery = Battery(cfg)
         self._swallow = False
         self.map = MapScreen(self)
@@ -104,11 +110,28 @@ class App:
     def _ingest(self):
         if self.net.stamp != self._net_stamp:
             self.fleet.update(self.net.snapshot(), "net"); self._net_stamp = self.net.stamp
+        if not self.net.ok and self.local.present:      # the antenna is a fallback, never a second source
+            rows = self.local.snapshot()
+            if rows: self.fleet.update(self.offdb.enrich(rows), "local")
+
+    def antenna_only(self, on: bool):
+        """Test the antenna: the app acts as if the internet has gone (see offline.py) and drops the feed's planes now
+        rather than when they go stale, so the map shows only what readsb hears."""
+        offline.on = on
+        if on:
+            with self.net.lock: self.net.latest, self.net.stamp = [], 0.0
+            for h in [h for h, a in self.fleet.by_hex.items() if "local" not in a.sources]: del self.fleet.by_hex[h]
+        else:
+            self.routes._failed.clear(); self.photos._failed.clear()     # lookups refused during the test: ask again now
+        print(f"feed: {'antenna only (simulated offline)' if on else 'back on the feed'}", flush=True)
 
     @property
     def mode(self) -> str:
-        """'wifi' = the internet feed is fresh; 'none' = it isn't (no Wi-Fi, or the feed is down)."""
-        return "wifi" if self.net.ok else "none"
+        """'wifi' = internet feed is fresh (happy path); 'antenna' = only our own receiver is alive;
+        'none' = neither. The antenna is always merged in when it hears something."""
+        if self.net.ok: return "wifi"
+        if self.local.present and self.local.ok: return "antenna"
+        return "none"
 
     def _screenshot_check(self):
         now = time.time()
@@ -190,12 +213,14 @@ class App:
                 top = self.stack[-1]
                 self.backlight.allow_off = bool(self.touch and self.touch.ok) and not (isinstance(top, ChargingScreen) and top.keep_lit)
                 self.backlight.tick()
+            if self.sleeper and int(time.time()) % 2 == 0: self.sleeper.tick()
             self._ingest()
             self.stack[-1].update(dt)
             self.stack[-1].draw(self.screen)
             self.display.flip()
             self._screenshot_check()
             self._save_clock()
+            if int(time.time()) % 10 == 0: self.offdb.tick()
         self.net.stop(); self.gps.stop(); self.display.close(); pygame.quit()
 
 def main(argv=None):

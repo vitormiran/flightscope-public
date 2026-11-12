@@ -19,6 +19,8 @@ class Config:
     net_radius_nm: int = 150            # fetch this wide so range changes don't refetch
     # photos (planespotters requires a contact in the User-Agent; leave blank to disable)
     photo_contact: str = ""             # e.g. "mailto:you@example.com" or "https://your.site/contact"
+    # local receiver (readsb) - used when present, merged with network later
+    readsb_json: str = "/run/readsb/aircraft.json"
     # misc
     cache_dir: str = str(Path.home() / ".cache/flightscope")
     screenshot_trigger: str = "/tmp/flightscope.shot"   # touch this file -> app saves /tmp/flightscope.png

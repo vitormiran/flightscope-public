@@ -1,4 +1,4 @@
-"""Internet plane feed: adsb.lol-style 'v2' point queries, polled in a thread; the UI reads .latest under .lock.
+"""Internet plane feed: readsb-style 'v2' point queries, polled in a thread; the UI reads .latest under .lock.
 
 Two free providers with the same aircraft format. adsb.lol caps each IP (500 requests a day, 60 a
 minute), so a 429 parks that provider until its reset and the next one takes over.
@@ -7,6 +7,7 @@ gives several points and each poll asks the next one, so the fleet fills in acro
 somewhere new asks about the middle of it first, without waiting for the next poll."""
 from __future__ import annotations
 import json, math, threading, time, urllib.request, urllib.error
+from .. import offline
 
 PROVIDERS = [  # name, url template, list key
     ("adsb.fi", "https://opendata.adsb.fi/api/v2/lat/{la:.4f}/lon/{lo:.4f}/dist/{r}", "aircraft"),
@@ -76,7 +77,7 @@ class NetworkSource:
                 url = tpl.format(base=self.cfg.adsb_base, la=la, lo=lo, r=r)
                 try:
                     req = urllib.request.Request(url, headers={"User-Agent": self.cfg.user_agent, "Accept": "application/json"})
-                    with urllib.request.urlopen(req, timeout=8) as resp:
+                    with offline.urlopen(req, timeout=8) as resp:
                         d = json.load(resp)
                     rows = d.get(key) or []
                     with self.lock:

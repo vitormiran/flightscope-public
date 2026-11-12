@@ -27,6 +27,7 @@ package_update: true
 package_upgrade: false
 packages:
   - git
+  - rtl-sdr
   - python3-pip
   - python3-venv
   - i2c-tools
@@ -36,6 +37,14 @@ packages:
   - libsdl2-image-2.0-0
   - libsdl2-ttf-2.0-0
   - libsdl2-mixer-2.0-0
+
+write_files:
+  # keep the kernel rtl2832 DVB driver off the SDR dongle, or readsb can't open it
+  - path: /etc/modprobe.d/blacklist-rtl-sdr.conf
+    content: |
+      blacklist dvb_usb_rtl28xxu
+      blacklist rtl2832
+      blacklist rtl2830
 
 runcmd:
   - [ systemctl, disable, --now, hciuart ]

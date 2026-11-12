@@ -5,11 +5,12 @@ minutes. The plane on screen (urgent) jumps the queue."""
 from __future__ import annotations
 import collections, json, threading, time, urllib.error, urllib.request
 from pathlib import Path
+from . import offline
 
 API = "https://api.adsbdb.com/v0/callsign/{cs}"
 ROUTESET = "https://adsb.im/api/0/routeset"      # api.adsb.lol/api/0/routeset answers 201 with an empty body
 RETRY_NONE_S = 3 * 86400
-RETRY_FAIL_S = 600            # no Wi-Fi, timeout, bad clock: leave that callsign alone for a while
+RETRY_FAIL_S = 600            # offline, timeout, bad clock: leave that callsign alone for a while
 
 def _seg_off(p, a, b):
     """Rough distance (deg) from p to the segment a-b, flat - only used to pick the leg of a multi-stop route."""
@@ -38,6 +39,7 @@ class RouteCache:
         self._failed: dict[str, float] = {}
         self._q: collections.deque = collections.deque()
         self._lock = threading.Condition()
+        self.db = None                          # OfflineDB: routes when the lookups can't be reached
         threading.Thread(target=self._worker, name="routes", daemon=True).start()
 
     def get(self, callsign: str, pos=None, urgent=False) -> Route | None:
@@ -71,7 +73,7 @@ class RouteCache:
         h = {"User-Agent": self.cfg.user_agent, "Accept": "application/json"}
         if body is not None: h["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=None if body is None else json.dumps(body).encode(), headers=h)
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with offline.urlopen(req, timeout=10) as r:
             raw = r.read()
         return json.loads(raw) if raw.strip() else None
 
@@ -101,13 +103,16 @@ class RouteCache:
                 while not self._q: self._lock.wait()
                 cs, pos = self._q.popleft()
             try:
-                out = self._adsbdb(cs) or self._routeset(cs, pos) or {"origin": None, "dest": None, "airline": None}
+                out = self._adsbdb(cs) or self._routeset(cs, pos) or (self.db and self.db.route(cs, pos)) or {"origin": None, "dest": None, "airline": None}
                 out["at"] = int(time.time())
                 json.dump(out, open(self.dir / f"{cs}.json", "w"))
                 self._failed.pop(cs, None); self._mem.pop(cs, None)
             except Exception as e:
-                self._mem.pop(cs, None); self._failed[cs] = time.time()
-                print(f"routes: {cs}: {type(e).__name__}: {e} (again in {RETRY_FAIL_S // 60} min)", flush=True)
+                off = self.db.route(cs, pos) if self.db else None
+                if off: self._mem[cs] = Route(off["origin"], off["dest"], None)     # not saved: the internet's answer wins once it's back
+                else:
+                    self._mem.pop(cs, None); self._failed[cs] = time.time()
+                    if not offline.on: print(f"routes: {cs}: {type(e).__name__}: {e} (again in {RETRY_FAIL_S // 60} min)", flush=True)
             finally:
                 self._absent.discard(cs)
                 with self._lock: self._pending.discard(cs)
