@@ -88,6 +88,7 @@ LOGO_PLANE = [(0, -11), (2, -7), (2, -2), (11, 3), (11, 5), (2, 3), (2, 7), (5, 
 GRIP_R, GRIP_PITCH, GRIP_N = 1.0, 8.0, 9   # grip ribs on both side walls : half-round, 1 mm proud, on the vent bars' 8 mm pitch so each rib runs between two vent slots
 LOGO_NAME, LOGO_NAME_SIZE = "", 9.0     # a name in the bottom-right corner of the back, in the app's font (Nunito Black), e.g. "SAM"; "" for none
 _HERE = Path(__file__).resolve().parent
+ART_FILE, ART_H, ART_XY, ART_DEPTH = "imgs/daniel_polys.json", 54.0, (80.0, 12.0), 0.6   # line art engraved in the back (trace_image.py makes the JSON): height, bottom-left corner in the box frame (x right, y up, seen from behind), depth. "" for none. Right-hand column of the back, clear of the stack's countersinks, the charge socket and the corner screw
 LOGO_FONT = next((str(f) for f in (_HERE / "fonts/Nunito-Black-flat.ttf",) if f.exists()), None)   # Nunito Black with its overlapping outlines merged (fontTools removeOverlaps): the stock TTF makes an invalid solid that wrecks the cut
 
 # internal envelope
@@ -270,6 +271,20 @@ def back_name():
     return (cq.Workplane("XY").workplane(offset=OUT_D - LOGO_DEPTH).center(hx, WALL + BOSS_R + 5.5)
             .text(LOGO_NAME, LOGO_NAME_SIZE, LOGO_DEPTH + 1, combine=False, halign="right", valign="center", **kw))
 
+def back_art():
+    """ART_FILE's line art engraved ART_DEPTH into the back, as a solid to cut. Seen from behind, upright. The back prints on the plate, so
+    it is cut in (the lines bridge their first layers) rather than raised, which would hang below the plate."""
+    import json
+    d = json.loads((_HERE / ART_FILE).read_text()); s = ART_H / d["h_px"]
+    pts = lambda poly: [(ART_XY[0] + x * s, ART_XY[1] + (d["h_px"] - y) * s) for x, y in poly]
+    art = None
+    for sh in d["shapes"]:
+        w = cq.Workplane("XY").workplane(offset=OUT_D - ART_DEPTH).polyline(pts(sh["outer"])).close()
+        for h in sh["holes"]: w = w.polyline(pts(h)).close()
+        w = w.extrude(ART_DEPTH + 1)
+        art = w if art is None else art.union(w)
+    return art
+
 # ----------------------------------------------------------------------------- front shell
 def front_shell():
     s = (rbox(OUT_W, OUT_H, Z_COVER).faces("<Z").edges().fillet(EDGE_R_FRONT)       # walls run from the bezel to the cover plane; rounded front edge
@@ -439,6 +454,7 @@ def rear_cover():
     tab = tab.cut(cq.Workplane("XY").workplane(offset=Z_COVER - 3).center(-LANYARD_OUT + 4.0 + LANYARD_SLOT[1] / 2, OUT_H / 2).slot2D(LANYARD_SLOT[0], LANYARD_SLOT[1], 90).extrude(WALL + 6))
     c = c.union(tab)
     if LOGO_NAME: c = c.cut(back_name())
+    if ART_FILE: c = c.cut(back_art())
     return c
 
 parts = {"front_shell": front_shell(), "mid_frame": mid_frame(), "rear_cover": rear_cover()}
